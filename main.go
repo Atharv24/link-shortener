@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"link-shortener/models"
 	"link-shortener/services"
@@ -68,8 +69,8 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	// URL has not been shortened, create new short URL
 	shortURL := utils.GenerateShortURL()
-
 	l := models.Link{
+		ID: primitive.NewObjectID(),
 		ShortURL:  shortURL,
 		LongURL:   req.URL,
 		CreatedAt: time.Now(),

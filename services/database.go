@@ -55,6 +55,7 @@ func DisconnectDB() {
 
 func AddLink(l *models.Link) error {
 	// Insert new link into database
+	log.Println(l)
 	_, err := db.Database.Collection("links").InsertOne(context.TODO(), l)
 	if err != nil {
 		return err
