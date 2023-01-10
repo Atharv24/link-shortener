@@ -35,11 +35,16 @@ func init() {
 }
 
 func IsAuthenticated(r *http.Request) bool {
-	// Get access token from session
-	session, _ := utils.Store.Get(r, "session-name")
-	accessToken, ok := session.Values["access_token"].(string)
-	if !ok || accessToken == "" {
-		return false
+	// Get access token from request header
+	accessToken := r.Header.Get("Authorization")
+
+	if(accessToken == "") {
+		// Get access token from session
+		session, _ := utils.Store.Get(r, "session-name")
+		accessToken, ok := session.Values["access_token"].(string)
+		if !ok || accessToken == "" {
+			return false
+		}
 	}
 
 	//Set up http client
