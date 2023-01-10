@@ -26,6 +26,15 @@ func main() {
 	}
 	defer services.DisconnectDB()
 
+	// Set up ticker to call DeleteExpiredLinks every hour
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	go func() {
+		for range ticker.C {
+			services.DeleteExpiredLinks()
+		}
+	}()
+
 	// Set up HTTP handlers
 	http.HandleFunc("/shorten", shortenHandler)
 	http.HandleFunc("/home", homeHandler)
@@ -73,11 +82,11 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	parsedUrl, err := url.Parse(req.URL)
 	if err != nil {
-		http.Error(w, "Error parsing url: " + err.Error(), http.StatusBadRequest)
+		http.Error(w, "Error parsing url: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// checking if scheme is not present and adding 
+	// checking if scheme is not present and adding
 	if parsedUrl.Scheme == "" {
 		parsedUrl.Scheme = "http"
 	}
@@ -87,11 +96,12 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := utils.Store.Get(r, "session-name")
 	email, _ := session.Values["email"].(string)
 	l := models.Link{
-		ID:        primitive.NewObjectID(),
-		ShortURL:  shortURL,
-		LongURL:   parsedUrl.String(),
-		AddedBy:   email,
-		CreatedAt: time.Now(),
+		ID:         primitive.NewObjectID(),
+		ShortURL:   shortURL,
+		LongURL:    parsedUrl.String(),
+		AddedBy:    email,
+		CreatedAt:  time.Now(),
+		AccessedAt: time.Now(),
 	}
 
 	// Insert new link into database
@@ -123,6 +133,12 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	} else if l == nil {
 		http.Error(w, "Short URL not found", http.StatusNotFound)
 		return
+	}
+
+	// Update the link's accessed at timestamp
+	err = services.UpdateLinkAccessedAt(l)
+	if err != nil {
+		log.Print("Error updating links accessed at timestamp")
 	}
 
 	// Redirect to long URL

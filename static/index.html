@@ -29,6 +29,7 @@
       <input type="text" name="url" placeholder="Enter URL to shorten" />
       <button type="submit">Shorten</button>
     </form>
+    <div id="shorturl"/>
   </body>
   <script>
     const form = document.querySelector("form");
@@ -59,7 +60,7 @@
           // and display the shortened URL
           const short_url = data.short_url;
           const shortenedUrl = currentUrl + "/" + short_url;
-          const div = document.createElement("div");
+          const div = document.getElementById("shorturl");
           div.innerHTML = `Shortened url is: <a href='${shortenedUrl}'>${shortenedUrl}</a>`;
           form.appendChild(div);
         })

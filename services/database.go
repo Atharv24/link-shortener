@@ -12,12 +12,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const(
+const (
 	mongoURI = "mongodb+srv://atharv24:JYMGr9h7jkdCF8fw@cluster0.mskfpan.mongodb.net/?retryWrites=true&w=majority"
 	database = "link-shortener"
 )
 
-var(
+var (
 	db Database
 )
 
@@ -26,7 +26,7 @@ type Database struct {
 	Database *mongo.Database
 }
 
-func ConnectDB() (error) {
+func ConnectDB() error {
 	// Connect to MongoDB database
 	client, err := mongo.NewClient(options.Client().ApplyURI(mongoURI))
 	if err != nil {
@@ -84,7 +84,6 @@ func AddUser(user *models.User) error {
 	return nil
 }
 
-
 func GetLinkByShortURL(shortURL string) (*models.Link, error) {
 	// Retrieve link from database
 	var l models.Link
@@ -98,10 +97,19 @@ func GetLinkByShortURL(shortURL string) (*models.Link, error) {
 	return &l, nil
 }
 
-func DeleteExpiredLinks(db *Database) error {
+func UpdateLinkAccessedAt(l *models.Link) error {
+	// Update the accessedAt field
+	_, err := db.Database.Collection("links").UpdateOne(context.TODO(), bson.M{"_id": l.ID}, bson.M{"$currentDate": bson.M{"accessed_at": true}})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DeleteExpiredLinks() error {
 	// Delete expired links from database
 	_, err := db.Database.Collection("links").DeleteMany(context.TODO(), bson.M{
-		"created_at": bson.M{
+		"accessed_at": bson.M{
 			"$lt": time.Now().Add(-30 * 24 * time.Hour),
 		},
 	})
