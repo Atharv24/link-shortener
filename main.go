@@ -4,18 +4,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/patrickmn/go-cache"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"link-shortener/models"
 	"link-shortener/services"
 	"link-shortener/utils"
-)
-
-var (
-	shortURLCache *cache.Cache
 )
 
 const (
@@ -30,16 +26,24 @@ func main() {
 	}
 	defer services.DisconnectDB()
 
-	// Create short URL cache - caching the short urls for 1 day (if not accessed again)
-	shortURLCache = cache.New(24*time.Hour, 10*time.Minute)
-
 	// Set up HTTP handlers
 	http.HandleFunc("/shorten", shortenHandler)
+	http.HandleFunc("/home", homeHandler)
+	http.HandleFunc("/login", services.OAuthLoginHandler)
+	http.HandleFunc("/oauth2callback", services.OAuth2CallbackHandler)
 	http.HandleFunc("/", redirectHandler)
 
 	// Start HTTP server
 	log.Printf("Listening on port %s", port)
 	log.Fatal(http.ListenAndServe(port, nil))
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	if !services.IsAuthenticated(r) {
+		http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
+		return
+	}
+	http.ServeFile(w, r, "static/index.html")
 }
 
 func shortenHandler(w http.ResponseWriter, r *http.Request) {
@@ -67,17 +71,31 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// URL has not been shortened, create new short URL
+	parsedUrl, err := url.Parse(req.URL)
+	if err != nil {
+		http.Error(w, "Error parsing url: " + err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// checking if scheme is not present and adding 
+	if parsedUrl.Scheme == "" {
+		parsedUrl.Scheme = "http"
+	}
+
+	// Create new short URL
 	shortURL := utils.GenerateShortURL()
+	session, _ := utils.Store.Get(r, "session-name")
+	email, _ := session.Values["email"].(string)
 	l := models.Link{
-		ID: primitive.NewObjectID(),
+		ID:        primitive.NewObjectID(),
 		ShortURL:  shortURL,
-		LongURL:   req.URL,
+		LongURL:   parsedUrl.String(),
+		AddedBy:   email,
 		CreatedAt: time.Now(),
 	}
 
 	// Insert new link into database
-	err := services.AddLink(&l)
+	err = services.AddLink(&l)
 	if err != nil {
 		http.Error(w, "Error inserting link into database", http.StatusInternalServerError)
 		return
@@ -88,24 +106,16 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func redirectHandler(w http.ResponseWriter, r *http.Request) {
+	shortURL := r.URL.Path[1:]
+	if shortURL == "favicon.ico" || shortURL == "" {
+		return
+	}
 	// Check for valid OAuth 2.0 token
 	if !services.IsAuthenticated(r) {
 		http.Error(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
-	shortURL := r.URL.Path[1:]
-	log.Println(shortURL)
-
-	// Check cache for short URL
-	val, found := shortURLCache.Get(shortURL)
-	if found {
-		// Redirect to long URL
-		http.Redirect(w, r, val.(string), http.StatusTemporaryRedirect)
-		return
-	}
-
-	// Short URL not in cache, check database
 	l, err := services.GetLinkByShortURL(shortURL)
 	if err != nil {
 		http.Error(w, "Error retrieving link from database", http.StatusInternalServerError)
@@ -117,7 +127,4 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to long URL
 	http.Redirect(w, r, l.LongURL, http.StatusTemporaryRedirect)
-
-	// Add short URL to cache
-	shortURLCache.Set(l.ShortURL, l.LongURL, cache.DefaultExpiration)
 }

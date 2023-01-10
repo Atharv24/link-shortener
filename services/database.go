@@ -55,13 +55,35 @@ func DisconnectDB() {
 
 func AddLink(l *models.Link) error {
 	// Insert new link into database
-	log.Println(l)
 	_, err := db.Database.Collection("links").InsertOne(context.TODO(), l)
 	if err != nil {
 		return err
 	}
 	return nil
 }
+
+func AddUser(user *models.User) error {
+	// Create a filter to check if the user already exists
+	filter := bson.M{"email": user.Email}
+	// Check if the user already exists in the database
+	var existingUser models.User
+	err := db.Database.Collection("users").FindOne(context.TODO(), filter).Decode(&existingUser)
+	if err == nil {
+		// If user already exists, return
+		return nil
+	}
+	if err != mongo.ErrNoDocuments {
+		// If there was an error other than 'ErrNoDocuments', return the error
+		return err
+	}
+	// If user does not exist, insert the new user into the database
+	_, err = db.Database.Collection("users").InsertOne(context.TODO(), user)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 
 func GetLinkByShortURL(shortURL string) (*models.Link, error) {
 	// Retrieve link from database

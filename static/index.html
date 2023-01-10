@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Link Shortener</title>
+    <style>
+      form {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      input[type="text"] {
+        width: 400px;
+        height: 40px;
+        font-size: 16px;
+        margin-bottom: 16px;
+      }
+
+      button[type="submit"] {
+        width: 120px;
+        height: 40px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Link Shortener</h1>
+    <form method="post" action="/shorten">
+      <input type="text" name="url" placeholder="Enter URL to shorten" />
+      <button type="submit">Shorten</button>
+    </form>
+  </body>
+  <script>
+    const form = document.querySelector("form");
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const url = formData.get("url");
+
+      const body = JSON.stringify({ url });
+      // get the current url
+      let currentUrl = window.location.href;
+      // cut off last part of the url 
+      currentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/')) 
+
+      fetch("/shorten", {
+        method: "post",
+        body,
+        headers: { "Content-Type": "application/json" },
+      })
+        .then((response) => {
+          if (response.ok) {
+            return response.json();
+          }
+          throw new Error("Failed to short the link");
+        })
+        .then((data) => {
+          // Handle the response
+          // and display the shortened URL
+          const short_url = data.short_url;
+          const shortenedUrl = currentUrl + "/" + short_url;
+          const div = document.createElement("div");
+          div.innerHTML = `Shortened url is: <a href='${shortenedUrl}'>${shortenedUrl}</a>`;
+          form.appendChild(div);
+        })
+        .catch((error) => {
+          // Handle the error
+          console.log(error);
+        });
+    });
+  </script>
+</html>
